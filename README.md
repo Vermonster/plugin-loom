@@ -139,3 +139,7 @@ agent-skills update reason-health --to v1.9.0
 Agent Plugins v1 currently standardizes a root `plugin.json`, skills in `skills/`, and optional `mcp.json`; it does not standardize dependency manifests, Git update policy, catalogs, or overlays. `agent-skills` deliberately keeps those concerns in its own YAML files and generated package, so a shared source remains usable by any compatible Agent Plugins client.
 
 This project is not affiliated with the Agent Plugins specification or its maintainers.
+
+## Learn the workflow
+
+Read [Concepts and workflow](docs/concepts-and-workflow.md) for a walkthrough of source plugins, root and domain-specific catalogs, installation, and local overrides.
