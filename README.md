@@ -216,6 +216,6 @@ This project is not affiliated with the Agent Plugins specification or its maint
 
 ## Learn the workflow
 
-Read [Concepts and workflow](docs/concepts-and-workflow.md) for a walkthrough of source plugins, root and domain-specific catalogs, installation, and local overrides.
+Read [Concepts and workflow](docs/concepts-and-workflow.md) for a walkthrough of source plugins, root and domain-specific catalogs, installation, and local overrides. See the [external plugin installation design](docs/external-plugin-installation-design.md) for the proposed `skills.sh`-style add flow.
 
 Sponsored by [Vermonster](https://vermonster.com).
