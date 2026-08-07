@@ -13,9 +13,11 @@ reason-health-skills/
 └── skills/
     ├── git-workflow/
     │   └── SKILL.md
-    ├── fhir/
+    ├── planning/
     │   └── SKILL.md
-    └── clinical-safety/
+    ├── deploy/
+    │   └── SKILL.md
+    └── testing/
         └── SKILL.md
 ```
 
@@ -32,12 +34,18 @@ core:
   - git-workflow
 
 catalogs:
-  healthcare:
-    - clinical-safety
-  fhir:
-    - fhir
-  release:
+  adlc:
+    - planning
+    - implementation
+    - code-review
+  release-process:
     - deploy
+  qa:
+    - testing
+    - test-automation
+  frontend-design:
+    - frontend-design
+    - accessibility
 ```
 
 ## 2. Install the CLI and register a source plugin
@@ -67,6 +75,9 @@ sources:
     repo: https://github.com/example/reason-health-plugins.git
     ref: v1.8.0
 
+# The root catalog file; AGENTS.md is the default when this is omitted.
+rootAgentFile: AGENTS.md
+
 # Project-level core selections are always available, regardless of directory.
 core:
   - reason-health/code-review
@@ -87,35 +98,96 @@ Commit these project-owned files:
 ```text
 plugin-loom.yaml
 plugin-loom.lock
-AGENTS.md
+<rootAgentFile>                  # AGENTS.md by default
+<scoped directories>/AGENTS.md
 .plugin-loom/local-skills/
 .plugin-loom/overrides/
 ```
 
 Do not commit the generated `.plugin-loom/cache/` or `.plugin-loom/effective/` directories.
 
-## 3. Always-on skills and root catalogs
+## 3. Enable catalogs in agent files
 
-There are two kinds of skills available from the project root:
+`plugin-loom enable` validates the requested catalog against the pinned source, then creates or updates a single `## Plugin Loom` section. `--when` is required: the command writes that inclusion context directly beside the catalog entry in the agent file. It preserves the rest of the target file and runs `sync` unless `--no-sync` is supplied.
 
-1. **Core skills** are explicitly selected in `plugin-loom.yaml` or listed as `core` by a source plugin. They are always present in every directory of the project.
-2. **Root catalogs** are enabled in the project-root `AGENTS.md`. They apply throughout the project unless a tool is resolved from outside the project root.
+The optional `rootAgentFile` configuration names the root target, relative to the project root. It defaults to `AGENTS.md`:
 
-Use core skills for small, broadly applicable practices: Git hygiene, code review, or testing. Use a root catalog for a larger shared domain that should apply everywhere in this repository, such as release operations.
+```yaml
+rootAgentFile: .agents/project-guidance.md
+```
+
+Without `--path`, the command updates that configured root file:
+
+```bash
+plugin-loom enable reason-health/adlc \
+  --when "Any task that plans, implements, reviews, or ships software changes."
+```
+
+If the root file previously contains ordinary project instructions:
 
 ```md
-<!-- AGENTS.md at the project root -->
+# Project guidance
+
+Run the test suite before changing production behavior.
+```
+
+the command produces:
+
+```md
+# Project guidance
+
+Run the test suite before changing production behavior.
+
 ## Plugin Loom
 
 Enable catalogs:
 
-- reason-health/release
+- reason-health/adlc
+  - When to include: Any task that plans, implements, reviews, or ships software changes.
+```
+
+For a domain catalog, choose a project-relative directory. This always updates that directory's `AGENTS.md` so nested guidance remains conventional and discoverable:
+
+```bash
+plugin-loom enable reason-health/release-process \
+  --path ops/release \
+  --when "Preparing, approving, or executing a release."
+plugin-loom enable reason-health/qa \
+  --path tests \
+  --when "Writing, running, or investigating automated tests."
+plugin-loom enable reason-health/frontend-design \
+  --path apps/web \
+  --when "Changing user-facing flows, components, or visual design."
+```
+
+For example, the resulting `tests/AGENTS.md` contains:
+
+```md
+## Plugin Loom
+
+Enable catalogs:
+
+- reason-health/qa
+  - When to include: Writing, running, or investigating automated tests.
+```
+
+## 4. Always-on skills and root catalogs
+
+There are two kinds of skills available from the project root:
+
+1. **Core skills** are explicitly selected in `plugin-loom.yaml` or listed as `core` by a source plugin. They are always present in every directory of the project.
+2. **Root catalogs** are enabled in the configured root agent file. Put the ADLC workflow catalog here so every task starts with the shared planning, implementation, review, and delivery process.
+
+Use core skills for small, broadly applicable practices: Git hygiene, code review, or testing. Use the root catalog for the ADLC workflow. Keep release-process, QA, and frontend-design catalogs scoped to their domains so they do not bloat every agent context.
+
+```bash
+plugin-loom enable reason-health/adlc --when "Any software delivery task."
 ```
 
 With this setup, a task from any subdirectory sees:
 
 ```text
-source core + project core + reason-health/release
+source core + project core + reason-health/adlc
 ```
 
 Inspect the result from the project root:
@@ -124,41 +196,36 @@ Inspect the result from the project root:
 plugin-loom list --effective
 ```
 
-## 4. Domain-specific catalogs
+## 5. Domain-specific catalogs
 
-Domain-specific catalogs belong in a nested `AGENTS.md`, close to the code and instructions they govern. They are additive: a nested file does not turn off root core skills or root catalogs.
+Domain-specific catalogs belong in a nested `AGENTS.md`, close to the code and instructions they govern. They are additive: a nested file does not turn off root core skills or the root ADLC catalog.
 
-For example, a FHIR service can enable healthcare and FHIR-specific guidance without loading it for the rest of the project:
+For example, scope release-process guidance to release operations, QA guidance to tests, and frontend-design guidance to the web application rather than loading all three everywhere:
 
 ```text
 my-project/
-├── AGENTS.md
-└── services/
-    └── fhir/
-        ├── AGENTS.md
-        └── src/
+├── AGENTS.md                 # ADLC catalog
+├── ops/release/AGENTS.md     # release-process catalog
+├── tests/AGENTS.md           # QA catalog
+└── apps/web/AGENTS.md        # frontend-design catalog
 ```
 
-```md
-<!-- services/fhir/AGENTS.md -->
-## Plugin Loom
-
-Additionally enable:
-
-- reason-health/healthcare
-- reason-health/fhir
+```bash
+plugin-loom enable reason-health/frontend-design \
+  --path apps/web \
+  --when "Changing user-facing flows, components, or visual design."
 ```
 
 Resolve from that domain directory to include every applicable level:
 
 ```bash
-plugin-loom list --effective --cwd services/fhir
-plugin-loom sync --cwd services/fhir
+plugin-loom list --effective --cwd apps/web
+plugin-loom sync --cwd apps/web
 ```
 
 The lock records the working-directory scope and active catalogs. If a different directory needs a different generated package, run `sync --cwd <directory>` for that scope before invoking the client that consumes `.plugin-loom/effective/`.
 
-## 5. Overriding a shared skill
+## 6. Overriding a shared skill
 
 Never edit a cached source under `.plugin-loom/cache/`. Declare an override in `plugin-loom.yaml` instead. The override key is always `source-id/skill-name`.
 
@@ -219,7 +286,7 @@ overrides:
 
 The replacement directory must contain its own `SKILL.md`. The shared source remains cached and pinned, but its version of that skill is not included in the effective package.
 
-## 6. Verify before relying on the effective package
+## 7. Verify before relying on the effective package
 
 Use these commands as a normal review loop:
 

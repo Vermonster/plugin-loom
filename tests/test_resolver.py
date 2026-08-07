@@ -26,7 +26,7 @@ def _create_source(path: Path) -> None:
         encoding="utf-8",
     )
     (path / "plugin-loom.catalogs.yaml").write_text(
-        "version: 1\ncore:\n  - testing\ncatalogs:\n  healthcare:\n    - clinical-safety\n",
+        "version: 1\ncore:\n  - testing\ncatalogs:\n  healthcare:\n    - clinical-safety\n  fhir:\n    - clinical-safety\n",
         encoding="utf-8",
     )
     (path / "skills" / "testing" / "SKILL.md").write_text(
@@ -143,3 +143,99 @@ class ResolverTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ResolutionError, "must declare \\$schema"):
                 resolve(project)
+
+    def test_enable_updates_root_and_scoped_agent_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            project = root / "project"
+            source.mkdir()
+            project.mkdir()
+            _create_source(source)
+            config = {
+                "version": 1,
+                "sources": [{"id": "example", "repo": str(source), "ref": "v1.0.0"}],
+                "rootAgentFile": ".agents/root.md",
+                "core": [],
+                "overrides": {},
+            }
+            (project / "plugin-loom.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+
+            self.assertEqual(
+                main(
+                    [
+                        "enable",
+                        "example/healthcare",
+                        "--when",
+                        "Working on clinical workflows.",
+                        "--project-root",
+                        str(project),
+                    ]
+                ),
+                0,
+            )
+            root_agents = project / ".agents" / "root.md"
+            self.assertEqual(
+                root_agents.read_text(encoding="utf-8"),
+                "## Plugin Loom\n\nEnable catalogs:\n\n- example/healthcare\n  - When to include: Working on clinical workflows.\n",
+            )
+            self.assertTrue((project / "plugin-loom.lock").is_file())
+            self.assertEqual([skill.name for skill in resolve(project).skills], ["testing", "clinical-safety"])
+
+            self.assertEqual(
+                main(
+                    [
+                        "enable",
+                        "example/fhir",
+                        "--when",
+                        "Working on FHIR integrations.",
+                        "--project-root",
+                        str(project),
+                        "--no-sync",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                root_agents.read_text(encoding="utf-8"),
+                "## Plugin Loom\n\nEnable catalogs:\n\n- example/healthcare\n  - When to include: Working on clinical workflows.\n- example/fhir\n  - When to include: Working on FHIR integrations.\n",
+            )
+
+            scoped_agents = project / "services" / "fhir" / "AGENTS.md"
+            scoped_agents.parent.mkdir(parents=True)
+            scoped_agents.write_text("# FHIR service\n\nFollow local conventions.\n", encoding="utf-8")
+            self.assertEqual(
+                main(
+                    [
+                        "enable",
+                        "example/healthcare",
+                        "--when",
+                        "Working on clinical workflows.",
+                        "--project-root",
+                        str(project),
+                        "--path",
+                        "services/fhir",
+                        "--no-sync",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                scoped_agents.read_text(encoding="utf-8"),
+                "# FHIR service\n\nFollow local conventions.\n\n## Plugin Loom\n\nEnable catalogs:\n\n- example/healthcare\n  - When to include: Working on clinical workflows.\n",
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "enable",
+                        "example/fhir",
+                        "--when",
+                        "Working on FHIR integrations.",
+                        "--project-root",
+                        str(project),
+                        "--no-sync",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(root_agents.read_text(encoding="utf-8").count("example/healthcare"), 1)

@@ -11,16 +11,24 @@ from pathlib import Path
 import yaml
 
 from . import __version__
-from .resolver import CONFIG_NAME, LOCK_NAME, STATE_DIR, ResolutionError, load_project_config, resolve, write_resolution
+from .agents import enable_catalog
+from .config import load_project_config, root_agent_file
+from .models import CONFIG_NAME, LOCK_NAME, STATE_DIR, ResolutionError
+from .resolver import resolve, write_resolution
+from .sources import fetch_source
 
 
 def _project_root(value: str | None) -> Path:
     return Path(value or Path.cwd()).resolve()
 
 
+def _working_directory(project_root: Path, value: str | None) -> Path:
+    return Path(value).resolve() if value else project_root
+
+
 def _sync(args: argparse.Namespace) -> int:
     project_root = _project_root(args.project_root)
-    resolution = resolve(project_root, Path(args.cwd).resolve() if args.cwd else project_root)
+    resolution = resolve(project_root, _working_directory(project_root, args.cwd))
     output = write_resolution(project_root, resolution)
     print(f"Resolved {len(resolution.skills)} skill(s) into {output}")
     print(f"Wrote {LOCK_NAME}")
@@ -29,7 +37,7 @@ def _sync(args: argparse.Namespace) -> int:
 
 def _check(args: argparse.Namespace) -> int:
     project_root = _project_root(args.project_root)
-    resolution = resolve(project_root, Path(args.cwd).resolve() if args.cwd else project_root)
+    resolution = resolve(project_root, _working_directory(project_root, args.cwd))
     lock_path = project_root / LOCK_NAME
     if not lock_path.is_file():
         raise ResolutionError(f"Missing {LOCK_NAME}; run 'plugin-loom sync'")
@@ -57,7 +65,7 @@ def _list(args: argparse.Namespace) -> int:
     if not args.effective:
         raise ResolutionError("Only 'list --effective' is supported in v0.1")
     project_root = _project_root(args.project_root)
-    resolution = resolve(project_root, Path(args.cwd).resolve() if args.cwd else project_root)
+    resolution = resolve(project_root, _working_directory(project_root, args.cwd))
     for skill in resolution.skills:
         version = skill.source_commit[:12] if skill.source_commit else "local"
         print(f"{skill.name}\t{skill.source_id}\t{version}\t{skill.mode}")
@@ -68,7 +76,7 @@ def _diff(args: argparse.Namespace) -> int:
     if not args.effective:
         raise ResolutionError("Only 'diff --effective' is supported in v0.1")
     project_root = _project_root(args.project_root)
-    resolution = resolve(project_root, Path(args.cwd).resolve() if args.cwd else project_root)
+    resolution = resolve(project_root, _working_directory(project_root, args.cwd))
     current_root = project_root / STATE_DIR / "effective"
     current_files = {path.relative_to(current_root): path.read_bytes() for path in current_root.rglob("*") if path.is_file()} if current_root.exists() else {}
     changed = False
@@ -109,6 +117,7 @@ def _init(args: argparse.Namespace) -> int:
     data = {
         "version": 1,
         "sources": [{"id": args.source_id, "repo": args.repo, "ref": args.ref}],
+        "rootAgentFile": "AGENTS.md",
         "core": [],
         "overrides": {},
     }
@@ -118,6 +127,35 @@ def _init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _enable(args: argparse.Namespace) -> int:
+    project_root = _project_root(args.project_root)
+    config, sources, _ = load_project_config(project_root)
+    if "/" not in args.catalog:
+        raise ResolutionError("Catalog must use source-id/catalog-name syntax")
+    source_id, catalog_name = args.catalog.split("/", 1)
+    source = next((item for item in sources if item.id == source_id), None)
+    if source is None:
+        raise ResolutionError(f"Unknown source: {source_id}")
+    resolved_source = fetch_source(project_root, source)
+    if catalog_name not in resolved_source.catalogs:
+        raise ResolutionError(f"Unknown catalog: {args.catalog}")
+
+    if args.path:
+        scope = (project_root / args.path).resolve()
+        if not scope.is_relative_to(project_root):
+            raise ResolutionError("Catalog path must be inside the project root")
+        agent_path = scope / "AGENTS.md"
+    else:
+        scope = project_root
+        agent_path = root_agent_file(project_root, config)
+    changed = enable_catalog(agent_path, args.catalog, args.when)
+    action = "Enabled or updated" if changed else "Already enabled"
+    print(f"{action} {args.catalog} in {agent_path.relative_to(project_root)}")
+    if args.no_sync:
+        return 0
+    return _sync(argparse.Namespace(project_root=str(project_root), cwd=str(scope)))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="plugin-loom", description="Resolve versioned Agent Plugin skills with project-local overlays.")
     parser.add_argument("--version", action="version", version=f"plugin-loom {__version__}")
@@ -125,7 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     def project_arguments(command: argparse.ArgumentParser) -> None:
         command.add_argument("--project-root", help="Project containing plugin-loom.yaml")
-        command.add_argument("--cwd", help="Working directory used for scoped AGENTS.md catalog activation")
+        command.add_argument("--cwd", help="Working directory used for scoped agent-file catalog activation")
 
     sync = subparsers.add_parser("sync", help="Resolve and materialize the effective Agent Plugin")
     project_arguments(sync)
@@ -159,6 +197,14 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--ref", required=True, help="Git ref to pin")
     init.add_argument("--force", action="store_true", help="Replace an existing configuration")
     init.set_defaults(handler=_init)
+
+    enable = subparsers.add_parser("enable", help="Enable a source catalog in an agent-instruction file")
+    project_arguments(enable)
+    enable.add_argument("catalog", help="Catalog to enable as source-id/catalog-name")
+    enable.add_argument("--when", required=True, help="When the catalog should be included in agent context")
+    enable.add_argument("--path", help="Project-relative directory for a scoped AGENTS.md")
+    enable.add_argument("--no-sync", action="store_true", help="Only update the agent-instruction file")
+    enable.set_defaults(handler=_enable)
     return parser
 
 

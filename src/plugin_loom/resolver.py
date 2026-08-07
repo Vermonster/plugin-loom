@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import shutil
 from pathlib import Path
 
-from .config import load_project_config, string_list
+from .agents import catalogs_from_agents_file
+from .config import load_project_config, root_agent_file, string_list
 from .models import CONFIG_NAME, LOCK_NAME, PLUGIN_SCHEMA, EffectiveSkill, ResolvedSource, Resolution, ResolutionError, STATE_DIR
 from .overlays import apply_patch, extend_skill, replace_skill, skill_files
 from .sources import fetch_source
@@ -17,7 +17,7 @@ from .sources import fetch_source
 __all__ = ["LOCK_NAME", "PLUGIN_SCHEMA", "ResolutionError", "resolve", "write_resolution"]
 
 
-def _active_catalogs(project_root: Path, working_directory: Path) -> tuple[str, ...]:
+def _active_catalogs(project_root: Path, working_directory: Path, root_agent_path: Path) -> tuple[str, ...]:
     try:
         relative = working_directory.resolve().relative_to(project_root.resolve())
     except ValueError as error:
@@ -30,27 +30,10 @@ def _active_catalogs(project_root: Path, working_directory: Path) -> tuple[str, 
         directories.append(current)
 
     catalogs: list[str] = []
-    for directory in directories:
-        catalogs.extend(_catalogs_from_agents_file(directory / "AGENTS.md"))
+    for index, directory in enumerate(directories):
+        agent_path = root_agent_path if index == 0 else directory / "AGENTS.md"
+        catalogs.extend(catalogs_from_agents_file(agent_path))
     return tuple(dict.fromkeys(catalogs))
-
-
-def _catalogs_from_agents_file(path: Path) -> list[str]:
-    if not path.is_file():
-        return []
-    catalogs: list[str] = []
-    in_plugin_loom = False
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if re.match(r"^#{1,6}\s+Plugin Loom\s*$", line, re.IGNORECASE):
-            in_plugin_loom = True
-            continue
-        if in_plugin_loom and re.match(r"^#{1,6}\s+", line):
-            in_plugin_loom = False
-        if in_plugin_loom:
-            match = re.match(r"^\s*-\s+([a-zA-Z0-9][a-zA-Z0-9_.-]*/[a-zA-Z0-9][a-zA-Z0-9_.-]*)\s*$", line)
-            if match:
-                catalogs.append(match.group(1))
-    return catalogs
 
 
 def _requested_skills(config: dict, sources: dict[str, ResolvedSource], active_catalogs: tuple[str, ...]) -> tuple[str, ...]:
@@ -157,7 +140,7 @@ def resolve(project_root: Path, working_directory: Path | None = None) -> Resolu
     working_directory = (working_directory or project_root).resolve()
     config, configured_sources, override_items = load_project_config(project_root)
     sources = {item.id: fetch_source(project_root, item) for item in configured_sources}
-    catalogs = _active_catalogs(project_root, working_directory)
+    catalogs = _active_catalogs(project_root, working_directory, root_agent_file(project_root, config))
     selected: list[tuple[str, str, ResolvedSource | None]] = list(_select_shared_skills(_requested_skills(config, sources, catalogs), sources))
     _add_local_skills(project_root, selected)
 

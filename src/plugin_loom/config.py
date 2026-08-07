@@ -81,6 +81,20 @@ def _load_overrides(project_root: Path, data: dict[str, Any]) -> dict[str, Overr
     return overrides
 
 
+def root_agent_file(project_root: Path, data: dict[str, Any]) -> Path:
+    """Return the configured root agent-instruction file within the project."""
+    raw_path = data.get("rootAgentFile", "AGENTS.md")
+    if not isinstance(raw_path, str) or not raw_path:
+        raise ResolutionError(f"{CONFIG_NAME}.rootAgentFile must be a non-empty relative path")
+    candidate = Path(raw_path)
+    if candidate.is_absolute():
+        raise ResolutionError(f"{CONFIG_NAME}.rootAgentFile must be a relative path")
+    path = (project_root / candidate).resolve()
+    if not path.is_relative_to(project_root.resolve()) or path == project_root.resolve():
+        raise ResolutionError(f"{CONFIG_NAME}.rootAgentFile must name a file inside the project")
+    return path
+
+
 def load_project_config(project_root: Path) -> tuple[dict[str, Any], tuple[Source, ...], dict[str, Override]]:
     path = project_root / CONFIG_NAME
     if not path.exists():
