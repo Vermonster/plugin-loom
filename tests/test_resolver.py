@@ -8,8 +8,8 @@ from pathlib import Path
 
 import yaml
 
-from agent_skills.resolver import PLUGIN_SCHEMA, ResolutionError, resolve, write_resolution
-from agent_skills.cli import main
+from plugin_loom.resolver import PLUGIN_SCHEMA, ResolutionError, resolve, write_resolution
+from plugin_loom.cli import main
 
 
 def _git(path: Path, *args: str) -> None:
@@ -25,7 +25,7 @@ def _create_source(path: Path) -> None:
         json.dumps({"$schema": PLUGIN_SCHEMA, "name": "example.skills"}) + "\n",
         encoding="utf-8",
     )
-    (path / "agent-skills.catalogs.yaml").write_text(
+    (path / "plugin-loom.catalogs.yaml").write_text(
         "version: 1\ncore:\n  - testing\ncatalogs:\n  healthcare:\n    - clinical-safety\n",
         encoding="utf-8",
     )
@@ -55,19 +55,19 @@ class ResolverTests(unittest.TestCase):
             project.mkdir()
             _create_source(source)
             (project / "AGENTS.md").write_text(
-                "## Agent skills\n\nEnable catalogs:\n\n- example/healthcare\n",
+                "## Plugin Loom\n\nEnable catalogs:\n\n- example/healthcare\n",
                 encoding="utf-8",
             )
-            extension = project / ".agent-skills" / "overrides" / "testing"
+            extension = project / ".plugin-loom" / "overrides" / "testing"
             extension.mkdir(parents=True)
             (extension / "SKILL.md").write_text("Always preserve fixtures.", encoding="utf-8")
             config = {
                 "version": 1,
                 "sources": [{"id": "example", "repo": str(source), "ref": "v1.0.0"}],
                 "core": ["example/testing"],
-                "overrides": {"example/testing": {"mode": "extend", "path": ".agent-skills/overrides/testing"}},
+                "overrides": {"example/testing": {"mode": "extend", "path": ".plugin-loom/overrides/testing"}},
             }
-            (project / "agent-skills.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+            (project / "plugin-loom.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
             resolution = resolve(project)
             self.assertEqual([skill.name for skill in resolution.skills], ["testing", "clinical-safety"])
@@ -76,7 +76,7 @@ class ResolverTests(unittest.TestCase):
             output = write_resolution(project, resolution)
             manifest = json.loads((output / "plugin.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["$schema"], PLUGIN_SCHEMA)
-            self.assertTrue((project / "agent-skills.lock").exists())
+            self.assertTrue((project / "plugin-loom.lock").exists())
             self.assertEqual(main(["check", "--project-root", str(project)]), 0)
 
     def test_duplicate_shared_and_local_skill_is_rejected(self) -> None:
@@ -92,8 +92,8 @@ class ResolverTests(unittest.TestCase):
                 "sources": [{"id": "example", "repo": str(source), "ref": "v1.0.0"}],
                 "core": ["example/testing"],
             }
-            (project / "agent-skills.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
-            local = project / ".agent-skills" / "local-skills" / "testing"
+            (project / "plugin-loom.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+            local = project / ".plugin-loom" / "local-skills" / "testing"
             local.mkdir(parents=True)
             (local / "SKILL.md").write_text("---\nname: testing\ndescription: Local.\n---\n", encoding="utf-8")
 
@@ -108,7 +108,7 @@ class ResolverTests(unittest.TestCase):
             source.mkdir()
             project.mkdir()
             _create_source(source)
-            patch = project / ".agent-skills" / "overrides" / "testing.patch"
+            patch = project / ".plugin-loom" / "overrides" / "testing.patch"
             patch.parent.mkdir(parents=True)
             patch.write_text(
                 "--- a/SKILL.md\n+++ b/SKILL.md\n@@ -6 +6 @@\n-# Testing\n+# Project testing\n",
@@ -118,9 +118,9 @@ class ResolverTests(unittest.TestCase):
                 "version": 1,
                 "sources": [{"id": "example", "repo": str(source), "ref": "v1.0.0"}],
                 "core": ["example/testing"],
-                "overrides": {"example/testing": {"mode": "patch", "path": ".agent-skills/overrides/testing.patch"}},
+                "overrides": {"example/testing": {"mode": "patch", "path": ".plugin-loom/overrides/testing.patch"}},
             }
-            (project / "agent-skills.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+            (project / "plugin-loom.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
 
             resolution = resolve(project)
             self.assertIn(b"# Project testing", resolution.files[Path("skills/testing/SKILL.md")])
@@ -139,7 +139,7 @@ class ResolverTests(unittest.TestCase):
             _git(source, "add", ".")
             _git(source, "commit", "-m", "Invalid plugin")
             config = {"version": 1, "sources": [{"id": "example", "repo": str(source), "ref": "HEAD"}]}
-            (project / "agent-skills.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+            (project / "plugin-loom.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
 
             with self.assertRaisesRegex(ResolutionError, "must declare \\$schema"):
                 resolve(project)

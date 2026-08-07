@@ -3,13 +3,13 @@ requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-skills"
+name = "plugin-loom"
 version = "0.1.0"
 description = "Resolve versioned Agent Plugin skills with project-local overlays."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Agent Skills contributors" }]
+authors = [{ name = "Plugin Loom contributors" }]
 dependencies = ["PyYAML>=6.0"]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
@@ -19,7 +19,7 @@ classifiers = [
 ]
 
 [project.scripts]
-agent-skills = "agent_skills.cli:main"
+plugin-loom = "plugin_loom.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

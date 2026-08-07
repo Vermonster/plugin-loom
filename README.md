@@ -1,6 +1,29 @@
-# agent-skills
+# plugin-loom
 
-`agent-skills` resolves versioned Agent Plugin skill packages into one reproducible, project-local effective plugin.
+`plugin-loom` gives you the right shared agent guidance for the part of the repository you are working in, without copying and hand-editing skills in every project.
+
+You add the shared plugins your team trusts, enable broad guidance at the repository root, and enable specialized guidance only beside the relevant domain. Plugin Loom pins the exact source commits, shows what is active, and generates one local Agent Plugin package for your client to load.
+
+## What it feels like to use
+
+Most of the time, the workflow is small:
+
+```bash
+# After changing sources, catalogs, or local overrides.
+plugin-loom sync
+
+# Before relying on the generated guidance or committing a configuration change.
+plugin-loom check
+
+# When you want to see which skills apply in your current area of work.
+plugin-loom list --effective
+```
+
+If you move into a specialized part of a repository, such as `services/fhir`, Plugin Loom reads that directory's `AGENTS.md` as well as the project-root file. You receive the root guidance plus the FHIR-specific catalogs, rather than every possible skill in every session.
+
+When your project needs one additional guardrail, extend or patch the shared skill in `.plugin-loom/overrides/`. Your change stays version-controlled and survives resyncing; the original plugin source remains unchanged.
+
+## How it works
 
 It uses the [Agent Plugins v1](https://agent-plugins.org/specification) portable boundary without redefining it:
 
@@ -19,9 +42,9 @@ shared-plugin/
 ```text
 project/
 ├── AGENTS.md                       # enables catalogs for the project or subtree
-├── agent-skills.yaml               # committed source, selection, and override policy
-├── agent-skills.lock               # committed exact Git commits and effective inventory
-└── .agent-skills/
+├── plugin-loom.yaml               # committed source, selection, and override policy
+├── plugin-loom.lock               # committed exact Git commits and effective inventory
+└── .plugin-loom/
     ├── local-skills/                # committed project-owned skills
     ├── overrides/                   # committed extends, patches, and replacements
     ├── cache/                       # ignored Git checkouts
@@ -30,12 +53,12 @@ project/
         └── skills/
 ```
 
-Never edit `.agent-skills/cache/` or `.agent-skills/effective/` directly.
+Never edit `.plugin-loom/cache/` or `.plugin-loom/effective/` directly.
 
 ## Install
 
 ```bash
-pipx install agent-skills
+pipx install plugin-loom
 ```
 
 For development from a clone:
@@ -46,13 +69,13 @@ python -m pip install -e .
 
 ## Configure a project
 
-Create `agent-skills.yaml`:
+Create `plugin-loom.yaml`:
 
 ```yaml
 version: 1
 sources:
   - id: reason-health
-    repo: https://github.com/reason-healthcare/agent-skills.git
+    repo: https://github.com/example/reason-health-plugins.git
     ref: v1.8.0
 
 # Explicitly selected skills are always available.
@@ -63,13 +86,13 @@ core:
 overrides:
   reason-health/code-review:
     mode: extend
-    path: .agent-skills/overrides/code-review
+    path: .plugin-loom/overrides/code-review
 ```
 
 Enable a catalog at the repository root or in a more-specific `AGENTS.md`:
 
 ```md
-## Agent skills
+## Plugin Loom
 
 Enable catalogs:
 
@@ -84,7 +107,7 @@ The resolver reads all applicable `AGENTS.md` files from the project root to the
 Catalogs are optional resolver metadata. A source plugin can publish this sidecar file without adding non-standard fields to its `plugin.json`:
 
 ```yaml
-# agent-skills.catalogs.yaml
+# plugin-loom.catalogs.yaml
 version: 1
 core:
   - testing
@@ -101,7 +124,7 @@ Each named skill must be present in the source plugin's immediate `skills/<skill
 
 ## Local skills and overrides
 
-Project-owned standalone skills live in `.agent-skills/local-skills/<skill>/SKILL.md`.
+Project-owned standalone skills live in `.plugin-loom/local-skills/<skill>/SKILL.md`.
 
 Shared skills may be customized only through an explicit `overrides` declaration:
 
@@ -117,26 +140,26 @@ An unintentional duplicate effective skill name is an error. This prevents one s
 
 ```bash
 # Resolve refs, validate plugins, apply local overlays, and write the effective package.
-agent-skills sync
+plugin-loom sync
 
 # Validate without writing generated output.
-agent-skills check
+plugin-loom check
 
 # Inspect the source, commit, and override mode for each resolved skill.
-agent-skills list --effective
+plugin-loom list --effective
 
 # Compare the current generated package with a newly resolved package.
-agent-skills diff --effective
+plugin-loom diff --effective
 
 # Change one source ref and refresh the lock file and generated package.
-agent-skills update reason-health --to v1.9.0
+plugin-loom update reason-health --to v1.9.0
 ```
 
-`sync` writes the exact source commits and every generated-file hash to `agent-skills.lock`. Commit that lock file along with `agent-skills.yaml`, local skills, overrides, and applicable `AGENTS.md` files.
+`sync` writes the exact source commits and every generated-file hash to `plugin-loom.lock`. Commit that lock file along with `plugin-loom.yaml`, local skills, overrides, and applicable `AGENTS.md` files.
 
 ## Standards boundary
 
-Agent Plugins v1 currently standardizes a root `plugin.json`, skills in `skills/`, and optional `mcp.json`; it does not standardize dependency manifests, Git update policy, catalogs, or overlays. `agent-skills` deliberately keeps those concerns in its own YAML files and generated package, so a shared source remains usable by any compatible Agent Plugins client.
+Agent Plugins v1 currently standardizes a root `plugin.json`, skills in `skills/`, and optional `mcp.json`; it does not standardize dependency manifests, Git update policy, catalogs, or overlays. `plugin-loom` deliberately keeps those concerns in its own YAML files and generated package, so a shared source remains usable by any compatible Agent Plugins client.
 
 This project is not affiliated with the Agent Plugins specification or its maintainers.
 

@@ -42,7 +42,7 @@ def validate_plugin_manifest(root: Path) -> dict[str, Any]:
 
 
 def _load_catalogs(root: Path) -> tuple[tuple[str, ...], dict[str, tuple[str, ...]]]:
-    catalog_path = root / "agent-skills.catalogs.yaml"
+    catalog_path = root / "plugin-loom.catalogs.yaml"
     catalog_data = load_yaml_mapping(catalog_path) if catalog_path.exists() else {}
     if catalog_data and catalog_data.get("version") != 1:
         raise ResolutionError(f"{catalog_path} must set version: 1")

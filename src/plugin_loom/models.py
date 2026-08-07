@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 
 
-CONFIG_NAME = "agent-skills.yaml"
-LOCK_NAME = "agent-skills.lock"
-STATE_DIR = ".agent-skills"
+CONFIG_NAME = "plugin-loom.yaml"
+LOCK_NAME = "plugin-loom.lock"
+STATE_DIR = ".plugin-loom"
 PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 PLUGIN_NAME_PATTERN = re.compile(r"^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$")
 

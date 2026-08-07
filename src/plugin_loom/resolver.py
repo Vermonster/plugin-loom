@@ -39,14 +39,14 @@ def _catalogs_from_agents_file(path: Path) -> list[str]:
     if not path.is_file():
         return []
     catalogs: list[str] = []
-    in_agent_skills = False
+    in_plugin_loom = False
     for line in path.read_text(encoding="utf-8").splitlines():
-        if re.match(r"^#{1,6}\s+Agent skills\s*$", line, re.IGNORECASE):
-            in_agent_skills = True
+        if re.match(r"^#{1,6}\s+Plugin Loom\s*$", line, re.IGNORECASE):
+            in_plugin_loom = True
             continue
-        if in_agent_skills and re.match(r"^#{1,6}\s+", line):
-            in_agent_skills = False
-        if in_agent_skills:
+        if in_plugin_loom and re.match(r"^#{1,6}\s+", line):
+            in_plugin_loom = False
+        if in_plugin_loom:
             match = re.match(r"^\s*-\s+([a-zA-Z0-9][a-zA-Z0-9_.-]*/[a-zA-Z0-9][a-zA-Z0-9_.-]*)\s*$", line)
             if match:
                 catalogs.append(match.group(1))
@@ -125,7 +125,7 @@ def _resolved_skill_files(
 def _effective_manifest() -> bytes:
     manifest = {
         "$schema": PLUGIN_SCHEMA,
-        "name": "agent-skills.effective",
+        "name": "plugin-loom.effective",
         "version": "1.0.0",
         "description": "Generated effective skills for this project. Do not edit by hand.",
     }

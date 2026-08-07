@@ -42,7 +42,7 @@ def extend_skill(base_files: dict[Path, bytes], extension_root: Path) -> dict[Pa
 def apply_patch(base_files: dict[Path, bytes], patch_path: Path) -> dict[Path, bytes]:
     if not patch_path.is_file():
         raise ResolutionError(f"Patch override must be a file: {patch_path}")
-    with tempfile.TemporaryDirectory(prefix="agent-skills-patch-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="plugin-loom-patch-") as temporary:
         temporary_root = Path(temporary)
         for relative, content in base_files.items():
             output = temporary_root / relative

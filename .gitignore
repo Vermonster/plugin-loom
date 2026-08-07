@@ -8,5 +8,5 @@ build/
 *.egg-info/
 
 # Per-project resolver state; these paths belong in consumer repositories.
-.agent-skills/cache/
-.agent-skills/effective/
+.plugin-loom/cache/
+.plugin-loom/effective/
