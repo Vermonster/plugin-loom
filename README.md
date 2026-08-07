@@ -1,6 +1,6 @@
 # plugin-loom
 
-`plugin-loom` gives you the right shared agent guidance for the part of the repository you are working in, without copying and hand-editing skills in every project.
+An Agent Plugins client that also provides version-controlled local overrides and manages skill-context bloat.
 
 You add the shared plugins your team trusts, enable broad guidance at the repository root, and enable specialized guidance only beside the relevant domain. Plugin Loom pins the exact source commits, shows what is active, and generates one local Agent Plugin package for your client to load.
 
