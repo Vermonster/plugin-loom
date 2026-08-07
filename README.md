@@ -1,6 +1,6 @@
 # plugin-loom
 
-An Agent Plugins client that also provides version-controlled local overrides and manages skill-context bloat.
+An Agent Plugins client with a skills.sh-style path for external skill installs, version-controlled local overrides, and control over skill-context bloat.
 
 You add the shared plugins your team trusts, enable broad guidance at the repository root, and enable specialized guidance only beside the relevant domain. Plugin Loom pins the exact source commits, shows what is active, and generates one local Agent Plugin package for your client to load.
 
@@ -41,11 +41,7 @@ shared-plugin/
 
 ```mermaid
 flowchart LR
-    subgraph shared[Shared authored source]
-        source["Agent Plugin<br/>plugin.json + skills/"]
-    end
     subgraph project[Project-authored inputs]
-        config["plugin-loom.yaml<br/>sources, catalogs, policy"]
         agents["Root and scoped<br/>agent files"]
         local[".plugin-loom/local-skills/"]
         overrides[".plugin-loom/overrides/"]
@@ -55,10 +51,7 @@ flowchart LR
         effective[".plugin-loom/effective/<br/>resolved Agent Plugin"]
         lock["plugin-loom.lock<br/>committed resolution record"]
     end
-    source --> cache
-    config --> cache
     cache --> effective
-    config --> effective
     agents --> effective
     local --> effective
     overrides --> effective
@@ -66,7 +59,7 @@ flowchart LR
     effective --> lock
 ```
 
-Project inputs and the shared source are authored; the cache, effective plugin, and lock are generated. The lock is generated but committed, so the exact resolution is reviewable and reproducible.
+Project inputs are authored; the cache, effective plugin, and lock are generated. The lock is generated but committed, so the exact resolution is reviewable and reproducible.
 
 ## Project layout
 
