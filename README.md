@@ -166,3 +166,5 @@ This project is not affiliated with the Agent Plugins specification or its maint
 ## Learn the workflow
 
 Read [Concepts and workflow](docs/concepts-and-workflow.md) for a walkthrough of source plugins, root and domain-specific catalogs, installation, and local overrides.
+
+Sponsored by [Vermonster](https://vermonster.com).
