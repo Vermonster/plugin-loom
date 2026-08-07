@@ -25,10 +25,6 @@ def _create_source(path: Path) -> None:
         json.dumps({"$schema": PLUGIN_SCHEMA, "name": "example.skills"}) + "\n",
         encoding="utf-8",
     )
-    (path / "plugin-loom.catalogs.yaml").write_text(
-        "version: 1\ncore:\n  - testing\ncatalogs:\n  healthcare:\n    - clinical-safety\n  fhir:\n    - clinical-safety\n",
-        encoding="utf-8",
-    )
     (path / "skills" / "testing" / "SKILL.md").write_text(
         "---\nname: testing\ndescription: Test safely.\n---\n\n# Testing\n",
         encoding="utf-8",
@@ -43,6 +39,16 @@ def _create_source(path: Path) -> None:
     _git(path, "add", ".")
     _git(path, "commit", "-m", "Initial plugin")
     _git(path, "tag", "v1.0.0")
+
+
+def _source_config(source: Path, ref: str = "v1.0.0") -> dict:
+    return {
+        "id": "example",
+        "repo": str(source),
+        "ref": ref,
+        "core": ["testing"],
+        "catalogs": {"healthcare": ["clinical-safety"], "fhir": ["clinical-safety"]},
+    }
 
 
 class ResolverTests(unittest.TestCase):
@@ -63,7 +69,7 @@ class ResolverTests(unittest.TestCase):
             (extension / "SKILL.md").write_text("Always preserve fixtures.", encoding="utf-8")
             config = {
                 "version": 1,
-                "sources": [{"id": "example", "repo": str(source), "ref": "v1.0.0"}],
+                "sources": [_source_config(source)],
                 "core": ["example/testing"],
                 "overrides": {"example/testing": {"mode": "extend", "path": ".plugin-loom/overrides/testing"}},
             }
@@ -89,7 +95,7 @@ class ResolverTests(unittest.TestCase):
             _create_source(source)
             config = {
                 "version": 1,
-                "sources": [{"id": "example", "repo": str(source), "ref": "v1.0.0"}],
+                "sources": [_source_config(source)],
                 "core": ["example/testing"],
             }
             (project / "plugin-loom.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
@@ -116,7 +122,7 @@ class ResolverTests(unittest.TestCase):
             )
             config = {
                 "version": 1,
-                "sources": [{"id": "example", "repo": str(source), "ref": "v1.0.0"}],
+                "sources": [_source_config(source)],
                 "core": ["example/testing"],
                 "overrides": {"example/testing": {"mode": "patch", "path": ".plugin-loom/overrides/testing.patch"}},
             }
@@ -144,6 +150,23 @@ class ResolverTests(unittest.TestCase):
             with self.assertRaisesRegex(ResolutionError, "must declare \\$schema"):
                 resolve(project)
 
+    def test_legacy_catalog_sidecar_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            project = root / "project"
+            source.mkdir()
+            project.mkdir()
+            _create_source(source)
+            (source / "plugin-loom.catalogs.yaml").write_text("version: 1\n", encoding="utf-8")
+            _git(source, "add", ".")
+            _git(source, "commit", "-m", "Add legacy catalog sidecar")
+            config = {"version": 1, "sources": [_source_config(source, "HEAD")]}
+            (project / "plugin-loom.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+
+            with self.assertRaisesRegex(ResolutionError, "no longer supported"):
+                resolve(project)
+
     def test_enable_updates_root_and_scoped_agent_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -154,7 +177,7 @@ class ResolverTests(unittest.TestCase):
             _create_source(source)
             config = {
                 "version": 1,
-                "sources": [{"id": "example", "repo": str(source), "ref": "v1.0.0"}],
+                "sources": [_source_config(source)],
                 "rootAgentFile": ".agents/root.md",
                 "core": [],
                 "overrides": {},

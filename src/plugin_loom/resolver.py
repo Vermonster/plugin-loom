@@ -39,15 +39,15 @@ def _active_catalogs(project_root: Path, working_directory: Path, root_agent_pat
 def _requested_skills(config: dict, sources: dict[str, ResolvedSource], active_catalogs: tuple[str, ...]) -> tuple[str, ...]:
     requested = list(string_list(config.get("core"), f"{CONFIG_NAME}.core"))
     for source in sources.values():
-        requested.extend(f"{source.source.id}/{skill}" for skill in source.core)
+        requested.extend(f"{source.source.id}/{skill}" for skill in source.source.core)
     for catalog_ref in active_catalogs:
         source_id, catalog = catalog_ref.split("/", 1)
         source = sources.get(source_id)
         if source is None:
             raise ResolutionError(f"AGENTS.md enables unknown source catalog: {catalog_ref}")
-        if catalog not in source.catalogs:
+        if catalog not in source.source.catalogs:
             raise ResolutionError(f"AGENTS.md enables unknown catalog: {catalog_ref}")
-        requested.extend(f"{source_id}/{skill}" for skill in source.catalogs[catalog])
+        requested.extend(f"{source_id}/{skill}" for skill in source.source.catalogs[catalog])
     return tuple(dict.fromkeys(requested))
 
 

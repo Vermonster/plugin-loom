@@ -35,6 +35,20 @@ def _require_string(data: dict[str, Any], field: str, context: str) -> str:
     return value
 
 
+def _load_catalogs(data: dict[str, Any], context: str) -> dict[str, tuple[str, ...]]:
+    raw_catalogs = data.get("catalogs", {})
+    if not isinstance(raw_catalogs, dict):
+        raise ResolutionError(f"{context}.catalogs must be a mapping")
+    catalogs = {
+        name: string_list(skills, f"{context}.catalogs.{name}")
+        for name, skills in raw_catalogs.items()
+        if isinstance(name, str) and name
+    }
+    if len(catalogs) != len(raw_catalogs):
+        raise ResolutionError(f"{context}.catalogs keys must be non-empty strings")
+    return catalogs
+
+
 def _load_sources(data: dict[str, Any]) -> tuple[Source, ...]:
     raw_sources = data.get("sources")
     if not isinstance(raw_sources, list) or not raw_sources:
@@ -49,6 +63,8 @@ def _load_sources(data: dict[str, Any]) -> tuple[Source, ...]:
             id=_require_string(raw, "id", context),
             repo=_require_string(raw, "repo", context),
             ref=_require_string(raw, "ref", context),
+            core=string_list(raw.get("core"), f"{context}.core"),
+            catalogs=_load_catalogs(raw, context),
         )
         if source.id in source_ids:
             raise ResolutionError(f"Duplicate source id: {source.id}")

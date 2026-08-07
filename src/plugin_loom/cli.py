@@ -116,7 +116,9 @@ def _init(args: argparse.Namespace) -> int:
         raise ResolutionError(f"{path} already exists; pass --force to replace it")
     data = {
         "version": 1,
-        "sources": [{"id": args.source_id, "repo": args.repo, "ref": args.ref}],
+        "sources": [
+            {"id": args.source_id, "repo": args.repo, "ref": args.ref, "core": [], "catalogs": {}}
+        ],
         "rootAgentFile": "AGENTS.md",
         "core": [],
         "overrides": {},
@@ -137,7 +139,7 @@ def _enable(args: argparse.Namespace) -> int:
     if source is None:
         raise ResolutionError(f"Unknown source: {source_id}")
     resolved_source = fetch_source(project_root, source)
-    if catalog_name not in resolved_source.catalogs:
+    if catalog_name not in resolved_source.source.catalogs:
         raise ResolutionError(f"Unknown catalog: {args.catalog}")
 
     if args.path:

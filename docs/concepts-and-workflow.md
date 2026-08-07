@@ -9,7 +9,6 @@ Each shared source is an [Agent Plugin](https://agent-plugins.org/specification)
 ```text
 reason-health-skills/
 ├── plugin.json
-├── plugin-loom.catalogs.yaml  # optional resolver metadata
 └── skills/
     ├── git-workflow/
     │   └── SKILL.md
@@ -21,32 +20,9 @@ reason-health-skills/
         └── SKILL.md
 ```
 
-The source plugin remains portable: an Agent Plugins-compatible client can discover `plugin.json` and `skills/*/SKILL.md` without knowing anything about `plugin-loom`.
+The source plugin remains portable: an Agent Plugins-compatible client can discover `plugin.json` and `skills/*/SKILL.md` without knowing anything about `plugin-loom`. Plugin Loom keeps source selection, source-level core skills, and named catalogs in the consuming project's single `plugin-loom.yaml`.
 
-`plugin-loom.catalogs.yaml` is optional resolver metadata. It groups a source plugin's existing skills for convenient activation; it does not add fields to `plugin.json`.
-
-```yaml
-# reason-health-skills/plugin-loom.catalogs.yaml
-version: 1
-
-# Source-level core skills are always selected whenever this source is used.
-core:
-  - git-workflow
-
-catalogs:
-  adlc:
-    - planning
-    - implementation
-    - code-review
-  release-process:
-    - deploy
-  qa:
-    - testing
-    - test-automation
-  frontend-design:
-    - frontend-design
-    - accessibility
-```
+If an earlier source uses `plugin-loom.catalogs.yaml`, move its `core` and `catalogs` entries under the matching source in `plugin-loom.yaml`, then remove the sidecar. Plugin Loom rejects that legacy sidecar so catalog policy cannot be split across two files.
 
 ## 2. Install the CLI and register a source plugin
 
@@ -74,6 +50,23 @@ sources:
   - id: reason-health
     repo: https://github.com/example/reason-health-plugins.git
     ref: v1.8.0
+    # Source-level skills selected in every scope.
+    core:
+      - git-workflow
+    # Named groups enabled from agent files.
+    catalogs:
+      adlc:
+        - planning
+        - implementation
+        - code-review
+      release-process:
+        - deploy
+      qa:
+        - testing
+        - test-automation
+      frontend-design:
+        - frontend-design
+        - accessibility
 
 # The root catalog file; AGENTS.md is the default when this is omitted.
 rootAgentFile: AGENTS.md
@@ -81,7 +74,6 @@ rootAgentFile: AGENTS.md
 # Project-level core selections are always available, regardless of directory.
 core:
   - reason-health/code-review
-  - reason-health/testing
 
 overrides: {}
 ```
@@ -271,6 +263,49 @@ plugin-loom update reason-health --to v1.9.0
 plugin-loom sync
 plugin-loom check
 ```
+
+### Advanced: author a patch from the pinned skill
+
+Author a patch from the exact cached source that Plugin Loom resolved. Do not edit the cache itself: copy the individual skill into a temporary Git repository, make the change there, and export its diff. This produces paths relative to the skill root, which is the format the resolver applies.
+
+First, ensure the cache is current and declare the patch override:
+
+```bash
+plugin-loom sync
+```
+
+```yaml
+overrides:
+  reason-health/deploy:
+    mode: patch
+    path: .plugin-loom/overrides/deploy.patch
+```
+
+Then create the patch. Edit `SKILL.md` after the temporary repository is initialized, before running the final `git diff` command:
+
+```bash
+PATCH_ROOT="$PWD/.plugin-loom/overrides"
+SCRATCH=$(mktemp -d)
+mkdir -p "$PATCH_ROOT"
+cp -R "$PWD/.plugin-loom/cache/reason-health/skills/deploy" "$SCRATCH/deploy"
+
+git -C "$SCRATCH/deploy" init -q
+git -C "$SCRATCH/deploy" add .
+git -C "$SCRATCH/deploy" -c user.name="Plugin Loom" -c user.email="plugin-loom@local" commit -qm base
+
+# Edit $SCRATCH/deploy/SKILL.md (and any other files in that skill) now.
+git -C "$SCRATCH/deploy" diff --binary > "$PATCH_ROOT/deploy.patch"
+```
+
+Inspect the result before relying on it. A patch should contain only the intended changes and paths such as `a/SKILL.md` and `b/SKILL.md`, never an absolute cache path:
+
+```bash
+git -C "$SCRATCH/deploy" diff --check
+plugin-loom sync
+plugin-loom check
+```
+
+`sync` runs `git apply --check` against the same pinned source before it generates the effective package. Keep the patch in version control; the temporary directory is only a local authoring workspace.
 
 ### Replace: take ownership of a skill
 

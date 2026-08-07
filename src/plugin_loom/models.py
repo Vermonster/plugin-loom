@@ -24,6 +24,8 @@ class Source:
     id: str
     repo: str
     ref: str
+    core: tuple[str, ...]
+    catalogs: dict[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -39,8 +41,6 @@ class ResolvedSource:
     source: Source
     root: Path
     commit: str
-    core: tuple[str, ...]
-    catalogs: dict[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True)

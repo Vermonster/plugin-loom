@@ -40,18 +40,33 @@ shared-plugin/
 `plugin.json` and `skills/*/SKILL.md` remain portable. Source pinning, catalog activation, and project overlays are resolver policy, not additions to the portable manifest.
 
 ```mermaid
-flowchart TD
-    source["Source Agent Plugin<br/>plugin.json + skills/"] --> pinned["Pinned source commit"]
-    catalogs["plugin-loom.catalogs.yaml<br/>core + named catalogs"] --> selections
-    config["plugin-loom.yaml<br/>project core + rootAgentFile"] --> selections
-    root["Configured root agent file<br/>ADLC workflow context"] --> selections
-    scoped["Scoped AGENTS.md files<br/>release, QA, frontend context"] --> selections
-    pinned --> selections[Selected shared skills]
-    selections --> overlays[Local skills and declared overrides]
-    overlays --> effective[".plugin-loom/effective/<br/>resolved Agent Plugin"]
+flowchart LR
+    subgraph shared[Shared authored source]
+        source["Agent Plugin<br/>plugin.json + skills/"]
+    end
+    subgraph project[Project-authored inputs]
+        config["plugin-loom.yaml<br/>sources, catalogs, policy"]
+        agents["Root and scoped<br/>agent files"]
+        local[".plugin-loom/local-skills/"]
+        overrides[".plugin-loom/overrides/"]
+    end
+    subgraph generated[Generated artifacts]
+        cache[".plugin-loom/cache/<br/>pinned source checkout"]
+        effective[".plugin-loom/effective/<br/>resolved Agent Plugin"]
+        lock["plugin-loom.lock<br/>committed resolution record"]
+    end
+    source --> cache
+    config --> cache
+    cache --> effective
+    config --> effective
+    agents --> effective
+    local --> effective
+    overrides --> effective
+    cache --> lock
+    effective --> lock
 ```
 
-For a working directory, the effective package is the pinned source core and project core, plus catalogs enabled by the root and each applicable scoped agent file, then local skills and declared overrides.
+Project inputs and the shared source are authored; the cache, effective plugin, and lock are generated. The lock is generated but committed, so the exact resolution is reviewable and reproducible.
 
 ## Project layout
 
@@ -93,13 +108,30 @@ sources:
   - id: reason-health
     repo: https://github.com/example/reason-health-plugins.git
     ref: v1.8.0
+    # Source-level skills enabled for this source in every scope.
+    core:
+      - git-workflow
+    # Named groups activated from root or scoped agent files.
+    catalogs:
+      adlc:
+        - planning
+        - implementation
+        - code-review
+      release-process:
+        - deploy
+        - incident-response
+      qa:
+        - testing
+        - test-automation
+      frontend-design:
+        - frontend-design
+        - accessibility
 
 # The root catalog file; defaults to AGENTS.md when omitted.
 rootAgentFile: AGENTS.md
 
 # Explicitly selected skills are always available.
 core:
-  - reason-health/git-workflow
   - reason-health/code-review
 
 overrides:
@@ -133,30 +165,9 @@ The resolver reads the configured root file and applicable scoped `AGENTS.md` fi
 
 ## Shared plugin catalogs
 
-Catalogs are optional resolver metadata. A source plugin can publish this sidecar file without adding non-standard fields to its `plugin.json`:
+Each source's `core` and `catalogs` live in the corresponding `sources` entry in `plugin-loom.yaml`, alongside the pinned repository and ref. This is resolver policy rather than part of the source plugin manifest.
 
-```yaml
-# plugin-loom.catalogs.yaml
-version: 1
-core:
-  - testing
-catalogs:
-  adlc:
-    - planning
-    - implementation
-    - code-review
-  release-process:
-    - deploy
-    - incident-response
-  qa:
-    - testing
-    - test-automation
-  frontend-design:
-    - frontend-design
-    - accessibility
-```
-
-Each named skill must be present in the source plugin's immediate `skills/<skill>/SKILL.md` directory. Clients that only understand Agent Plugins can ignore this sidecar and still discover the portable skills.
+Every named skill must be present in the pinned source plugin's immediate `skills/<skill>/SKILL.md` directory. The source itself remains a portable Agent Plugin, so any compatible client can discover its `plugin.json` and skills without Plugin Loom configuration.
 
 ## Local skills and overrides
 
@@ -199,7 +210,7 @@ plugin-loom enable reason-health/qa --path tests --when "Writing or investigatin
 
 ## Standards boundary
 
-Agent Plugins v1 currently standardizes a root `plugin.json`, skills in `skills/`, and optional `mcp.json`; it does not standardize dependency manifests, Git update policy, catalogs, or overlays. `plugin-loom` deliberately keeps those concerns in its own YAML files and generated package, so a shared source remains usable by any compatible Agent Plugins client.
+Agent Plugins v1 currently standardizes a root `plugin.json`, skills in `skills/`, and optional `mcp.json`; it does not standardize dependency manifests, Git update policy, catalogs, or overlays. `plugin-loom` deliberately keeps those concerns in its own `plugin-loom.yaml` and generated package, so a shared source remains usable by any compatible Agent Plugins client.
 
 This project is not affiliated with the Agent Plugins specification or its maintainers.
 
